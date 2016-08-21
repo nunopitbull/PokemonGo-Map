@@ -22,9 +22,9 @@ var idToPokemon = {}
 var i8lnDictionary = {}
 var notificationDistances = {}
 var audiosprites = {}
-var pushNotify = new pushNotification(5)
-var soundNotify = new soundNotification(5)
-var textToSpeechNotify = new textToSpeechNotification(5)
+var pushNotify = new PushNotification(5)
+var soundNotify = new SoundNotification(5)
+var textToSpeechNotify = new TextToSpeechNotification(5)
 var languageLookups = 0
 var languageLookupThreshold = 3
 
@@ -1663,7 +1663,7 @@ function getHeadingOrdinal (heading) {
   }
 }
 
-function processNotifications(item, marker) {
+function processNotifications (item, marker) {
 
   function _shouldNotify (storeKey, distance) {
     // has notification distance JSON finished loading?
@@ -1671,7 +1671,7 @@ function processNotifications(item, marker) {
       return false
     }
     var distanceItem = notificationDistances[Store.get(storeKey)]
-    if (!(distanceItem.type == 'none') && (distanceItem.type == 'all' || distanceItem.type == 'less' && distance <= parseInt(distanceItem.value) || distanceItem.type == 'more' && distance > parseInt(distanceItem.value))) {
+    if (!(distanceItem.type === 'none') && (distanceItem.type === 'all' || distanceItem.type === 'less' && distance <= parseInt(distanceItem.value) || distanceItem.type == 'more' && distance > parseInt(distanceItem.value))) {
       return true
     }
     return false
@@ -1687,12 +1687,12 @@ function processNotifications(item, marker) {
 
   pushNotify.nextNotifyTime = soundNotify.nextNotifyTime = textToSpeechNotify.nextNotifyTime = Math.max.apply(Math, [pushNotify.nextNotifyTime, soundNotify.nextNotifyTime, textToSpeechNotify.nextNotifyTime])
 
-  //Throttle notifications to < 1 min, notification maxQueue's are also set at 5 (no more than 5 notifications queued)
-  if (pushNotify.nextNotifyTime - Date.now() > 60000){
+  // Throttle notifications to < 1 min, notification maxQueue's are also set at 5 (no more than 5 notifications queued)
+  if (pushNotify.nextNotifyTime - Date.now() > 60000) {
     return
   }
 
-  if (isNearBy && nearByNotify.indexOf(1) >= 0 ) {
+  if (isNearBy && nearByNotify.indexOf(1) >= 0) {
     notificationTitle = 'A nearby wild ' + item.pokemon_rarity + ' ' + item.pokemon_name + ' appeared!'
     notitifcationMessage = pokemonDistance + ' ' + i8ln('Meters') + ' ' + pokemonOrdinal + ' (Click to load map)'
     pushNotify.notify(notificationTitle, notitifcationMessage, 'static/icons/' + pokemonId + '.png', item.latitude, item.longitude)
@@ -1702,14 +1702,14 @@ function processNotifications(item, marker) {
     pushNotify.notify(notificationTitle, notitifcationMessage, 'static/icons/' + pokemonId + '.png', item.latitude, item.longitude)
   }
 
-  if (isNearBy && nearByNotify.indexOf(2) >= 0 ) {
+  if (isNearBy && nearByNotify.indexOf(2) >= 0) {
     if (!soundNotify.notify(pokemonId + '-nearby')) {
       if (!soundNotify.notify('default-nearby')) {
         soundNotify.notify('default')
       }
     }
     if (!soundNotify.notify(pokemonId)) {
-     soundNotify.notify('default')
+      soundNotify.notify('default')
     }
   } else if (_shouldNotify('select_sound_notify', pokemonDistance)) {
     if (!soundNotify.notify(pokemonId)) {
@@ -1717,7 +1717,7 @@ function processNotifications(item, marker) {
     }
   }
 
-  if (isNearBy && nearByNotify.indexOf(3) >= 0 ) {
+  if (isNearBy && nearByNotify.indexOf(3) >= 0) {
     textToSpeechNotify.notify(i8ln('Nearby') + item.pokemon_rarity + ' ' + item.pokemon_name + '. ' + pokemonDistance + ' ' + i8ln('Meters') + ' ' + pokemonOrdinal, soundNotify.nextNotifyTime)
   } else if (_shouldNotify('select_texttospeech_notify', pokemonDistance)) {
     textToSpeechNotify.notify(item.pokemon_rarity + ' ' + item.pokemon_name + '. ' + pokemonDistance + ' ' + i8ln('Meters') + ' ' + pokemonOrdinal, soundNotify.nextNotifyTime)
@@ -1728,22 +1728,22 @@ function processNotifications(item, marker) {
   }
 }
 
-function soundNotification (queueMax) {
+function SoundNotification (queueMax) {
   this.nextNotifyTime = 0
   this.minInterval = 500
   this.queueMax = queueMax
   this.queueCurrent = 0
 
   this.notify = function (soundId, notifyTime) {
-    if ((soundId in createjs.Sound._idHash)  && createjs.Sound.loadComplete(soundId)) {
+    if ((soundId in createjs.Sound._idHash) && createjs.Sound.loadComplete(soundId)) {
       if (this.queueCurrent >= this.queueMax) {
         return // we could indicate we are suppressing
       }
       this.queueCurrent += 1
       var delay = Math.max(0, (notifyTime || this.nextNotifyTime) - Date.now())
       var audioInstance = createjs.Sound.play(soundId, new createjs.PlayPropsConfig().set({delay: delay}))
-      audioInstance.on("complete", () => { this.queueCurrent -= 1 })
-      audioInstance.on("failed", () =>  { this.queueCurrent -= 1 })
+      audioInstance.on('complete', () => {this.queueCurrent -= 1})
+      audioInstance.on('failed', () =>  {this.queueCurrent -= 1})
       this.nextNotifyTime = Date.now() + audioInstance.duration + this.minInterval + delay
       return true
     }
@@ -1757,11 +1757,11 @@ function soundNotification (queueMax) {
       createjs.Sound.on('fileload', _fileLoaded)
     }
     if (!createjs.Sound.hasEventListener('fileerror')) {
-      createjs.Sound.on("fileerror", _fileError)
+      createjs.Sound.on('fileerror', _fileError)
     }
 
     $.getJSON(source).done(function (data) {
-        createjs.Sound.registerSounds(data, path)
+      createjs.Sound.registerSounds(data, path)
     })
   }
 
@@ -1770,11 +1770,11 @@ function soundNotification (queueMax) {
   }
 
   function _fileError (event) {
-    console.log("Sound file Error: ", event.id, event.src)
+    console.log('Sound file Error: ', event.id, event.src)
   }
 }
 
-function pushNotification (queueMax) {
+function PushNotification (queueMax) {
   this.nextNotifyTime = 0
   this.minInterval = 500
   this.queueMax = queueMax
@@ -1788,7 +1788,7 @@ function pushNotification (queueMax) {
       this.queueCurrent += 1
       var delay = Math.max(0, (notifyTime || this.nextNotifyTime) - Date.now())
       this.nextNotifyTime = Date.now() + this.minInterval + delay
-      setTimeout( () => {
+      setTimeout(() => {
         this.queueCurrent -= 1
         _notify(title, text, icon, lat, lng)
       }, delay)
@@ -1810,14 +1810,14 @@ function pushNotification (queueMax) {
         this.close()
         centerMap(lat, lng, 20)
       },
-      vibrate: [300,100,300]
+      vibrate: [300, 100, 300]
     })
   }
 }
 
-function textToSpeechNotification (queueMax) {
+function TextToSpeechNotification (queueMax) {
   this.nextNotifyTime = 0
-  this.minInterval = 5000 //max time per phrase
+  this.minInterval = 5000 // max time per phrase
   this.queueMax = queueMax
   this.queueCurrent = 0
 
@@ -1829,7 +1829,7 @@ function textToSpeechNotification (queueMax) {
       this.queueCurrent += 1
       var delay = Math.max(0, (notifyTime || this.nextNotifyTime) - Date.now())
       this.nextNotifyTime = Date.now() + this.minInterval + delay
-      setTimeout( () => {
+      setTimeout(() => {
         this.queueCurrent -= 1
         var utterance = new SpeechSynthesisUtterance(phrase)
         utterance.rate = 0.8
@@ -1982,8 +1982,8 @@ function i8ln (word) {
   }
 }
 
-//Replace the phrases in a sentence that are enclosed in { } with i8ln
-function i8lnReplace(text) {
+// Replace the phrases in a sentence that are enclosed in { } with i8ln
+function i8lnReplace (text) {
   var matches = text.match(/[^{}]+(?=})/g)
 
   $.each(matches, function (key, value) {
@@ -2005,22 +2005,22 @@ $(function () {
   if (Push.isSupported) {
     Push.Permission.request()
 
-    var query = (document.location.search).replace(/(^\?)/,'').split("&").map(function(n){return n = n.split("="),this[n[0]] = n[1],this}.bind({}))[0]
-    if('centermap' in query){
+    var query = (document.location.search).replace(/(^\?)/, '').split('&').map(function (n) { return n = n.split('='), this[n[0]] = n[1], this }.bind({}))[0]
+    if ('centermap' in query) {
       var location = query.centermap.split(',')
       centerMap(location[0], location[1], 20)
     }
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.addEventListener('message', function(event) {
-        if (('task' in event.data) && (event.data.task == 'centermap')) {
+      navigator.serviceWorker.addEventListener('message', function (event) {
+        if (('task' in event.data) && (event.data.task === 'centermap')) {
           centerMap(event.data.lat, event.data.lng, 20)
         }
       })
     }
 
   } else {
-    console.log ('notifications are not supported.')
+    console.log('notifications are not supported.')
   }
 })
 
@@ -2186,8 +2186,8 @@ $(function () {
     var audiospriteList = []
     $.each(data, function (key, value) {
       audiospriteList.push({
-      id: value['id'],
-      text: i8lnReplace(value['text'])
+        id: value['id'],
+        text: i8lnReplace(value['text'])
       })
       audiosprites[value['id']] = {id: value['id'], type: value['type'], src: value['src'], audiosprite: []}
     })
@@ -2201,7 +2201,7 @@ $(function () {
     })
 
     $selectAudiospriteNotify.on('change', function (e) {
-      soundNotify.load('static/sounds/' + audiosprites[this.value].id  + '/' + audiosprites[this.value].src, 'static/sounds/' + audiosprites[this.value].id + '/')
+      soundNotify.load('static/sounds/' + audiosprites[this.value].id + '/' + audiosprites[this.value].src, 'static/sounds/' + audiosprites[this.value].id + '/')
       Store.set('select_audiosprite_notify', this.value)
     })
 
@@ -2212,7 +2212,7 @@ $(function () {
 
   $selectNearbyNotify.select2({
     placeholder: i8ln('Select Notifications'),
-    data: [{id: 1, text: i8ln('Push')}, {id: 2, text: i8ln('Sound')}, {id:3, text: i8ln('Voice')}]
+    data: [{id: 1, text: i8ln('Push')}, {id: 2, text: i8ln('Sound')}, {id: 3, text: i8ln('Voice')}]
   })
 
   $selectNearbyNotify.on('change', function (e) {
