@@ -183,6 +183,16 @@
 
           <h3>Notification Settings</h3>
           <div>
+            <div class="form-control switch-container" >
+              <h3>Notifications</h3>
+              <div class="onoffswitch">
+                <input id="notify-switch" type="checkbox" name="notify-switch" class="onoffswitch-checkbox" checked/>
+                <label class="onoffswitch-label" for="notify-switch">
+                <span class="switch-label" data-on="On" data-off="Off"></span>
+                <span class="switch-handle"></span>
+                </label>
+              </div>
+            </div>
             <div class="form-control switch-container">
               <h3>Push Notifications</h3>
               <select id="notify-notification"></select>
@@ -232,6 +242,10 @@
                 <option value="20">X-Large</option>
               </select>
             </div>
+            <div class="form-control switch-container">
+              <h3>Search Icon Marker</h3>
+              <select name="iconmarker-style" id="iconmarker-style"></select>
+            </div>
           </div>
         </div>
       </nav>
@@ -260,10 +274,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.0/jquery-ui.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/skel/3.0.1/skel.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.3/js/select2.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/push.js/0.0.11/push.min.js"></script>
     <script src="https://code.createjs.com/soundjs-0.6.2.min.js"></script>
     <script src="{{ url_for('static', filename='dist/js/app.min.js').lstrip('/') }}"></script>
     <script src="{{ url_for('static', filename='js/vendor/classie.js').lstrip('/') }}"></script>
+    <script src="{{ url_for('static', filename='dist/js/push.custom.min.js).lstrip('/') }}"></script>
     <script>
       var centerLat = {{lat}};
       var centerLng = {{lng}};

@@ -4,7 +4,7 @@
 	"src": "default.mp3"
   },
   {
-    "id": "default-far",
-	"src": "default.mp3"
+    "id": "default-nearby",
+	"src": "default-nearby.mp3"
   }
 ]

@@ -7,7 +7,7 @@
   },
   "2": {
     "id": "cries",
-	"text": "{Cries}",
+	"text": "{Pokemon Cries}",
 	"src": "audiosprite_cries.min.json",
 	"type": "sprite"
   }

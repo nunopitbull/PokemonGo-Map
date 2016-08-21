@@ -9,6 +9,7 @@ var $selectStyle
 var $selectIconResolution
 var $selectIconSize
 var $selectLuredPokestopsOnly
+var $selectSearchIconMarker
 var $selectSoundNotify
 var $selectAudiospriteNotify
 var $selectNotificationNotify
@@ -21,11 +22,13 @@ var idToPokemon = {}
 var i8lnDictionary = {}
 var notificationDistances = {}
 var audiosprites = {}
-var pushNotify = new pushNotification
-var soundNotify = new soundNotification
-var textToSpeechNotify = new textToSpeechNotification
+var pushNotify = new pushNotification(5)
+var soundNotify = new soundNotification(5)
+var textToSpeechNotify = new textToSpeechNotification(5)
 var languageLookups = 0
 var languageLookupThreshold = 3
+
+var searchMarkerStyles
 
 var excludedPokemon = []
 var notifiedPokemon = []
@@ -34,13 +37,26 @@ var notifiedRarity = []
 var map
 var rawDataIsLoading = false
 var locationMarker
-var marker
+var searchMarker
+var storeZoom = true
 
 var noLabelsStyle = [{
   featureType: 'poi',
   elementType: 'labels',
   stylers: [{
     visibility: 'off'
+  }]
+}, {
+  'featureType': 'all',
+  'elementType': 'labels.text.stroke',
+  'stylers': [{
+    'visibility': 'off'
+  }]
+}, {
+  'featureType': 'all',
+  'elementType': 'labels.text.fill',
+  'stylers': [{
+    'visibility': 'off'
   }]
 }, {
   'featureType': 'all',
@@ -768,6 +784,18 @@ var StoreOptions = {
     default: 0,
     type: StoreTypes.Number
   },
+  'searchMarkerStyle': {
+    default: 'google',
+    type: StoreTypes.String
+  },
+  'zoomLevel': {
+    default: 16,
+    type: StoreTypes.Number
+  },
+  'notify': {
+    default: false,
+    type: StoreTypes.Boolean
+  },
   'select_notification_notify': {
     default: 'none',
     type: StoreTypes.String
@@ -850,7 +878,7 @@ function initMap () { // eslint-disable-line no-unused-vars
       lat: centerLat,
       lng: centerLng
     },
-    zoom: 16,
+    zoom: Store.get('zoomLevel'),
     fullscreenControl: true,
     streetViewControl: false,
     mapTypeControl: false,
@@ -911,24 +939,35 @@ function initMap () { // eslint-disable-line no-unused-vars
   })
 
   map.setMapTypeId(Store.get('map_style'))
-  google.maps.event.addListener(map, 'idle', updateMap)
+  map.addListener('idle', updateMap)
 
-  marker = createSearchMarker()
+  map.addListener('zoom_changed', function () {
+    if (storeZoom === true) {
+      Store.set('zoomLevel', this.getZoom())
+    } else {
+      storeZoom = true
+    }
 
-  addMyLocationButton()
-  initSidebar()
-  google.maps.event.addListenerOnce(map, 'idle', function () {
-    updateMap()
-  })
-
-  google.maps.event.addListener(map, 'zoom_changed', function () {
     redrawPokemon(mapData.pokemons)
     redrawPokemon(mapData.lurePokemons)
   })
+
+  searchMarker = createSearchMarker()
+
+  addMyLocationButton()
+  initSidebar()
+}
+
+function updateSearchMarker (style) {
+  if (style in searchMarkerStyles) {
+    searchMarker.setIcon(searchMarkerStyles[style].icon)
+    Store.set('searchMarkerStyle', style)
+  }
+  return searchMarker
 }
 
 function createSearchMarker () {
-  var marker = new google.maps.Marker({ // need to keep reference.
+  var searchMarker = new google.maps.Marker({ // need to keep reference.
     position: {
       lat: centerLat,
       lng: centerLng
@@ -936,29 +975,30 @@ function createSearchMarker () {
     map: map,
     animation: google.maps.Animation.DROP,
     draggable: !Store.get('lockMarker'),
-    icon: 'static/marker_icon.png',
+    icon: null,
+    optimized: false,
     zIndex: google.maps.Marker.MAX_ZINDEX + 1
   })
 
   var oldLocation = null
-  google.maps.event.addListener(marker, 'dragstart', function () {
-    oldLocation = marker.getPosition()
+  google.maps.event.addListener(searchMarker, 'dragstart', function () {
+    oldLocation = searchMarker.getPosition()
   })
 
-  google.maps.event.addListener(marker, 'dragend', function () {
-    var newLocation = marker.getPosition()
+  google.maps.event.addListener(searchMarker, 'dragend', function () {
+    var newLocation = searchMarker.getPosition()
     changeSearchLocation(newLocation.lat(), newLocation.lng())
       .done(function () {
         oldLocation = null
       })
       .fail(function () {
         if (oldLocation) {
-          marker.setPosition(oldLocation)
+          searchMarker.setPosition(oldLocation)
         }
       })
   })
 
-  return marker
+  return searchMarker
 }
 
 var searchControlURI = 'search_control'
@@ -982,6 +1022,7 @@ function initSidebar () {
   $('#start-at-user-location-switch').prop('checked', Store.get('startAtUserLocation'))
   $('#scanned-switch').prop('checked', Store.get('showScanned'))
   $('#spawnpoints-switch').prop('checked', Store.get('showSpawnpoints'))
+  $('#notify-switch').prop('checked', Store.get('notify'))
   var searchBox = new google.maps.places.SearchBox(document.getElementById('next-location'))
   $('#next-location').css('background-color', $('#geoloc-switch').prop('checked') ? '#e0e0e0' : '#ffffff')
 
@@ -1101,16 +1142,10 @@ function gymLabel (teamName, teamId, gymPoints, latitude, longitude) {
   return str
 }
 
-function pokestopLabel (lured, lastModified, latitude, longitude) {
+function pokestopLabel (expireTime, latitude, longitude) {
   var str
-  if (lured) {
-    var lastModifiedDate = new Date(lastModified)
-    var currentDate = new Date()
-
-    var timeUntilExpire = currentDate.getTime() - lastModifiedDate.getTime()
-
-    var expireDate = new Date(currentDate.getTime() + timeUntilExpire)
-    var expireTime = expireDate.getTime()
+  if (expireTime) {
+    var expireDate = new Date(expireTime)
 
     str = `
       <div>
@@ -1196,7 +1231,7 @@ function setupPokemonMarker (item, skipNotification, isBounceDisabled) {
   })
 
   if (notifiedPokemon.indexOf(item['pokemon_id']) > -1 || notifiedRarity.indexOf(item['pokemon_rarity']) > -1) {
-    if (!skipNotification) {
+    if (!skipNotification && Store.get('notify')) {
       processNotifications(item, marker)
     }
   }
@@ -1243,7 +1278,7 @@ function setupPokestopMarker (item) {
   })
 
   marker.infoWindow = new google.maps.InfoWindow({
-    content: pokestopLabel(!!item['lure_expiration'], item['last_modified'], item['latitude'], item['longitude']),
+    content: pokestopLabel(item['lure_expiration'], item['latitude'], item['longitude']),
     disableAutoPan: true
   })
 
@@ -1390,7 +1425,7 @@ function showInBoundsMarkers (markers) {
 function loadRawData () {
   var loadPokemon = Store.get('showPokemon')
   var loadGyms = Store.get('showGyms')
-  var loadPokestops = Store.get('showPokestops') || Store.get('showPokemon')
+  var loadPokestops = Store.get('showPokestops')
   var loadScanned = Store.get('showScanned')
   var loadSpawnpoints = Store.get('showSpawnpoints')
 
@@ -1594,13 +1629,21 @@ function getPointDistance (pointA, pointB) {
   return google.maps.geometry.spherical.computeDistanceBetween(pointA, pointB)
 }
 
-function getItemDistance (item) {
+function getPokemonDistance (item) {
+  if (!(locationMarker)) {
+    return 0
+  }
   return parseInt(google.maps.geometry.spherical.computeDistanceBetween(locationMarker.getPosition(), new google.maps.LatLng(item.latitude, item.longitude)))
 }
 
-function getItemHeading (item) {
-  var heading = google.maps.geometry.spherical.computeHeading(locationMarker.getPosition(), new google.maps.LatLng(item.latitude, item.longitude))
+function getPokemonHeading (item) {
+  if (!(locationMarker)) {
+    return 0
+  }
+  return google.maps.geometry.spherical.computeHeading(locationMarker.getPosition(), new google.maps.LatLng(item.latitude, item.longitude))
+}
 
+function getHeadingOrdinal (heading) {
   if ((heading >= -22 && heading <= 22)) {
     return i8ln('North')
   } else if (heading >= 68 && heading <= 112) {
@@ -1621,12 +1664,6 @@ function getItemHeading (item) {
 }
 
 function processNotifications(item, marker) {
-  var notificationTitle
-  var notitifcationMessage
-  var distance = getItemDistance(item)
-  var pokemonId = item.pokemon_id.toString()
-  var isNearBy = (distance <= parseInt(Store.get('select_nearbydistance_notify')))
-  var nearByNotify = Store.get('select_nearby_notify')
 
   function _shouldNotify (storeKey, distance) {
     // has notification distance JSON finished loading?
@@ -1640,20 +1677,28 @@ function processNotifications(item, marker) {
     return false
   }
 
+  var notificationTitle
+  var notitifcationMessage
+  var pokemonDistance = getPokemonDistance(item)
+  var pokemonOrdinal = getHeadingOrdinal(getPokemonHeading(item))
+  var pokemonId = item.pokemon_id.toString()
+  var isNearBy = (pokemonDistance <= parseInt(Store.get('select_nearbydistance_notify')))
+  var nearByNotify = Store.get('select_nearby_notify')
+
   pushNotify.nextNotifyTime = soundNotify.nextNotifyTime = textToSpeechNotify.nextNotifyTime = Math.max.apply(Math, [pushNotify.nextNotifyTime, soundNotify.nextNotifyTime, textToSpeechNotify.nextNotifyTime])
 
-  //Throttle notifications
+  //Throttle notifications to < 1 min, notification maxQueue's are also set at 5 (no more than 5 notifications queued)
   if (pushNotify.nextNotifyTime - Date.now() > 60000){
     return
   }
 
   if (isNearBy && nearByNotify.indexOf(1) >= 0 ) {
     notificationTitle = 'A nearby wild ' + item.pokemon_rarity + ' ' + item.pokemon_name + ' appeared!'
-    notitifcationMessage = getItemDistance(item) + ' ' + i8ln('Meters') + ' ' + getItemHeading(item) + ' (Click to load map)'
+    notitifcationMessage = pokemonDistance + ' ' + i8ln('Meters') + ' ' + pokemonOrdinal + ' (Click to load map)'
     pushNotify.notify(notificationTitle, notitifcationMessage, 'static/icons/' + pokemonId + '.png', item.latitude, item.longitude)
-  } else if (_shouldNotify('select_notification_notify', distance)) {
+  } else if (_shouldNotify('select_notification_notify', pokemonDistance)) {
     notificationTitle = 'A wild ' + item.pokemon_rarity + ' ' + item.pokemon_name + ' appeared!'
-    notitifcationMessage = getItemDistance(item) + ' ' + i8ln('Meters') + ' ' + getItemHeading(item) + ' (Click to load map)'
+    notitifcationMessage = pokemonDistance + ' ' + i8ln('Meters') + ' ' + pokemonOrdinal + ' (Click to load map)'
     pushNotify.notify(notificationTitle, notitifcationMessage, 'static/icons/' + pokemonId + '.png', item.latitude, item.longitude)
   }
 
@@ -1666,16 +1711,16 @@ function processNotifications(item, marker) {
     if (!soundNotify.notify(pokemonId)) {
      soundNotify.notify('default')
     }
-  } else if (_shouldNotify('select_sound_notify', distance)) {
+  } else if (_shouldNotify('select_sound_notify', pokemonDistance)) {
     if (!soundNotify.notify(pokemonId)) {
       soundNotify.notify('default')
     }
   }
 
   if (isNearBy && nearByNotify.indexOf(3) >= 0 ) {
-    textToSpeechNotify.notify(i8ln('Nearby') + item.pokemon_rarity + ' ' + item.pokemon_name + '. ' + getItemDistance(item) + ' ' + i8ln('Meters') + ' ' + getItemHeading(item), soundNotify.nextNotifyTime)
-  } else if (_shouldNotify('select_texttospeech_notify', distance)) {
-    textToSpeechNotify.notify(item.pokemon_rarity + ' ' + item.pokemon_name + '. ' + getItemDistance(item) + ' ' + i8ln('Meters') + ' ' + getItemHeading(item), soundNotify.nextNotifyTime)
+    textToSpeechNotify.notify(i8ln('Nearby') + item.pokemon_rarity + ' ' + item.pokemon_name + '. ' + pokemonDistance + ' ' + i8ln('Meters') + ' ' + pokemonOrdinal, soundNotify.nextNotifyTime)
+  } else if (_shouldNotify('select_texttospeech_notify', pokemonDistance)) {
+    textToSpeechNotify.notify(item.pokemon_rarity + ' ' + item.pokemon_name + '. ' + pokemonDistance + ' ' + i8ln('Meters') + ' ' + pokemonOrdinal, soundNotify.nextNotifyTime)
   }
 
   if (marker.animationDisabled !== true) {
@@ -1683,14 +1728,22 @@ function processNotifications(item, marker) {
   }
 }
 
-function soundNotification () {
+function soundNotification (queueMax) {
   this.nextNotifyTime = 0
   this.minInterval = 500
+  this.queueMax = queueMax
+  this.queueCurrent = 0
 
   this.notify = function (soundId, notifyTime) {
     if ((soundId in createjs.Sound._idHash)  && createjs.Sound.loadComplete(soundId)) {
+      if (this.queueCurrent >= this.queueMax) {
+        return // we could indicate we are suppressing
+      }
+      this.queueCurrent += 1
       var delay = Math.max(0, (notifyTime || this.nextNotifyTime) - Date.now())
       var audioInstance = createjs.Sound.play(soundId, new createjs.PlayPropsConfig().set({delay: delay}))
+      audioInstance.on("complete", () => { this.queueCurrent -= 1 })
+      audioInstance.on("failed", () =>  { this.queueCurrent -= 1 })
       this.nextNotifyTime = Date.now() + audioInstance.duration + this.minInterval + delay
       return true
     }
@@ -1713,23 +1766,32 @@ function soundNotification () {
   }
 
   function _fileLoaded (event) {
-    console.log("Sound file loaded:", event.id, event.src)
+
   }
 
   function _fileError (event) {
-    console.log("Sound file Error:", event.id, event.src)
+    console.log("Sound file Error: ", event.id, event.src)
   }
 }
 
-function pushNotification () {
+function pushNotification (queueMax) {
   this.nextNotifyTime = 0
   this.minInterval = 500
+  this.queueMax = queueMax
+  this.queueCurrent = 0
 
   this.notify = function (title, text, icon, lat, lng, notifyTime) {
     if (Push.isSupported) {
+      if (this.queueCurrent >= this.queueMax) {
+        return // we could indicate we are suppressing
+      }
+      this.queueCurrent += 1
       var delay = Math.max(0, (notifyTime || this.nextNotifyTime) - Date.now())
       this.nextNotifyTime = Date.now() + this.minInterval + delay
-      setTimeout(function () {_notify(title, text, icon, lat, lng)}, delay)
+      setTimeout( () => {
+        this.queueCurrent -= 1
+        _notify(title, text, icon, lat, lng)
+      }, delay)
     }
   }
 
@@ -1738,25 +1800,37 @@ function pushNotification () {
       icon: icon,
       body: text,
       timeout: 5000,
+      data: {
+        url: location.protocol + '//' + location.host + location.pathname + '?centermap=' + lat + ',' + lng,
+        lat: lat,
+        lng: lng
+      },
       onClick: function () {
         window.focus()
         this.close()
         centerMap(lat, lng, 20)
       },
-      vibrate: [500]
+      vibrate: [300,100,300]
     })
   }
 }
 
-function textToSpeechNotification (phrase) {
+function textToSpeechNotification (queueMax) {
   this.nextNotifyTime = 0
   this.minInterval = 5000 //max time per phrase
+  this.queueMax = queueMax
+  this.queueCurrent = 0
 
   this.notify = function (phrase, notifyTime) {
     if ('speechSynthesis' in window) {
+      if (this.queueCurrent >= this.queueMax) {
+        return // we could indicate we are suppressing
+      }
+      this.queueCurrent += 1
       var delay = Math.max(0, (notifyTime || this.nextNotifyTime) - Date.now())
       this.nextNotifyTime = Date.now() + this.minInterval + delay
-      setTimeout(function () {
+      setTimeout( () => {
+        this.queueCurrent -= 1
         var utterance = new SpeechSynthesisUtterance(phrase)
         utterance.rate = 0.8
         utterance.lang = language
@@ -1866,7 +1940,7 @@ function changeLocation (lat, lng) {
   var loc = new google.maps.LatLng(lat, lng)
   changeSearchLocation(lat, lng).done(function () {
     map.setCenter(loc)
-    marker.setPosition(loc)
+    searchMarker.setPosition(loc)
   })
 }
 
@@ -1880,6 +1954,7 @@ function centerMap (lat, lng, zoom) {
   map.setCenter(loc)
 
   if (zoom) {
+    storeZoom = false
     map.setZoom(zoom)
   }
 }
@@ -1927,11 +2002,26 @@ function isTouchDevice () {
 //
 
 $(function () {
-  if (!Push.isSupported) {
-    console.log('Notifications not supported')
-    return
+  if (Push.isSupported) {
+    Push.Permission.request()
+
+    var query = (document.location.search).replace(/(^\?)/,'').split("&").map(function(n){return n = n.split("="),this[n[0]] = n[1],this}.bind({}))[0]
+    if('centermap' in query){
+      var location = query.centermap.split(',')
+      centerMap(location[0], location[1], 20)
+    }
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', function(event) {
+        if (('task' in event.data) && (event.data.task == 'centermap')) {
+          centerMap(event.data.lat, event.data.lng, 20)
+        }
+      })
+    }
+
+  } else {
+    console.log ('notifications are not supported.')
   }
-  Push.Permission.request()
 })
 
 $(function () {
@@ -2005,8 +2095,38 @@ $(function () {
     updateMap()
   })
 
+  $selectSearchIconMarker = $('#iconmarker-style')
+
+  $.getJSON('static/dist/data/searchmarkerstyle.min.json').done(function (data) {
+    searchMarkerStyles = data
+    var searchMarkerStyleList = []
+
+    $.each(data, function (key, value) {
+      searchMarkerStyleList.push({
+        id: key,
+        text: value.name
+      })
+    })
+
+    $selectSearchIconMarker.select2({
+      placeholder: 'Select Icon Marker',
+      data: searchMarkerStyleList,
+      minimumResultsForSearch: Infinity
+    })
+
+    $selectSearchIconMarker.on('change', function (e) {
+      var selectSearchIconMarker = $selectSearchIconMarker.val()
+      Store.set('searchMarkerStyle', selectSearchIconMarker)
+      updateSearchMarker(selectSearchIconMarker)
+    })
+
+    $selectSearchIconMarker.val(Store.get('searchMarkerStyle')).trigger('change')
+
+    updateSearchMarker(Store.get('lockMarker'))
+  })
+
   // Load notification distances and populate lists
-  $.getJSON('static/dist/data/notificationdistances.min.json').done(function (data) {
+  $.getJSON('static/dist/data/notificationdistance.min.json').done(function (data) {
     var notificationDistanceList = []
 
     $.each(data, function (key, value) {
@@ -2219,11 +2339,11 @@ $(function () {
         var lon = position.coords.longitude
 
         // the search function makes any small movements cause a loop. Need to increase resolution
-        if (getPointDistance(marker.getPosition(), (new google.maps.LatLng(lat, lon))) > 40) {
+        if (getPointDistance(searchMarker.getPosition(), (new google.maps.LatLng(lat, lon))) > 40) {
           $.post(baseURL + '/next_loc?lat=' + lat + '&lon=' + lon).done(function () {
             var center = new google.maps.LatLng(lat, lon)
             map.panTo(center)
-            marker.setPosition(center)
+            searchMarker.setPosition(center)
           })
         }
       })
@@ -2266,6 +2386,10 @@ $(function () {
     return buildSwitchChangeListener(mapData, ['pokestops'], 'showPokestops').bind(this)()
   })
 
+  $('#notify-switch').change(function () {
+    Store.set('notify', this.checked)
+  })
+
   $('#geoloc-switch').change(function () {
     $('#next-location').prop('disabled', this.checked)
     $('#next-location').css('background-color', this.checked ? '#e0e0e0' : '#ffffff')
@@ -2278,7 +2402,7 @@ $(function () {
 
   $('#lock-marker-switch').change(function () {
     Store.set('lockMarker', this.checked)
-    marker.setDraggable(!this.checked)
+    searchMarker.setDraggable(!this.checked)
   })
 
   $('#search-switch').change(function () {
@@ -2289,9 +2413,11 @@ $(function () {
     Store.set('startAtUserLocation', this.checked)
   })
 
-  $('#nav-accordion').accordion({
-    active: 0,
-    collapsible: true,
-    heightStyle: 'content'
-  })
+  if ($('#nav-accordion').length) {
+    $('#nav-accordion').accordion({
+      active: 0,
+      collapsible: true,
+      heightStyle: 'content'
+    })
+  }
 })

@@ -32,7 +32,8 @@ module.exports = function(grunt) {
           'static/dist/js/map.built.js': 'static/js/map.js',
           'static/dist/js/mobile.built.js': 'static/js/mobile.js',
           'static/dist/js/stats.built.js': 'static/js/stats.js',
-          'static/dist/js/statistics.built.js': 'static/js/statistics.js'
+          'static/dist/js/statistics.built.js': 'static/js/statistics.js',
+          'static/dist/js/push.custom.built.js': 'static/js/vendor/push.custom.js'
         }
       }
     },
@@ -50,7 +51,8 @@ module.exports = function(grunt) {
           'static/dist/js/map.min.js': 'static/dist/js/map.built.js',
           'static/dist/js/mobile.min.js': 'static/dist/js/mobile.built.js',
           'static/dist/js/stats.min.js': 'static/dist/js/stats.built.js',
-          'static/dist/js/statistics.min.js': 'static/dist/js/statistics.built.js'
+          'static/dist/js/statistics.min.js': 'static/dist/js/statistics.built.js',
+          'static/dist/js/push.custom.min.js': 'static/js/vendor/push.custom.js'
         }
       }
     },
@@ -59,7 +61,8 @@ module.exports = function(grunt) {
         files: {
           'static/dist/data/pokemon.min.json': 'static/data/pokemon.json',
           'static/dist/data/mapstyle.min.json': 'static/data/mapstyle.json',
-          'static/dist/data/notificationdistances.min.json': 'static/data/notificationdistances.json',
+          'static/dist/data/searchmarkerstyle.min.json': 'static/data/searchmarkerstyle.json',
+          'static/dist/data/notificationdistance.min.json': 'static/data/notificationdistance.json',
           'static/sounds/audiosprites.min.json': 'static/data/sounds/audiosprites.json',
           'static/sounds/default/audiosprite_default.min.json': 'static/data/sounds/audiosprite_default.json',
           'static/sounds/cries/audiosprite_cries.min.json': 'static/data/sounds/audiosprite_cries.json',
