@@ -645,9 +645,15 @@ def check_login(args, account, api, position):
 
     # Try to login (a few times, but don't get stuck here)
     i = 0
-    api.set_position(position[0], position[1], position[2])
+    maxjitter = args.loginjitter
+    new_position = jitterLocation(position, maxMeters=maxjitter)
+    api.set_position(new_position[0], new_position[1], new_position[2])
+
+    currentPos = api.get_position()
+    log.debug("Position of {} is: {}, {}".format(account['username'], currentPos[0], currentPos[1], currentPos[2]))
     while i < args.login_retries:
         try:
+
             if args.proxy:
                 api.set_authentication(provider=account['auth_service'], username=account['username'], password=account['password'], proxy_config={'http': args.proxy, 'https': args.proxy})
             else:
