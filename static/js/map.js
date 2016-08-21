@@ -1683,6 +1683,7 @@ function processNotifications (item, marker) {
   var pokemonId = item.pokemon_id.toString()
   var isNearBy = (pokemonDistance <= parseInt(Store.get('select_nearbydistance_notify')))
   var nearByNotify = Store.get('select_nearby_notify')
+  var pokemonRaritySound = {[i8ln('Common')]: 'rarity-1', [i8ln('Uncommon')]: 'rarity-2', [i8ln('Rare')]: 'rarity-3', [i8ln('Very Rare')]: 'rarity-4', [i8ln('Ultra Rare')]: 'rarity-5'}
 
   pushNotify.nextNotifyTime = soundNotify.nextNotifyTime = textToSpeechNotify.nextNotifyTime = Math.max.apply(null, [pushNotify.nextNotifyTime, soundNotify.nextNotifyTime, textToSpeechNotify.nextNotifyTime])
 
@@ -1704,15 +1705,21 @@ function processNotifications (item, marker) {
   if (isNearBy && nearByNotify.indexOf(2) >= 0) {
     if (!soundNotify.notify(pokemonId + '-nearby')) {
       if (!soundNotify.notify('default-nearby')) {
-        soundNotify.notify('default')
+        if (!soundNotify.notify(pokemonRaritySound[item.pokemon_rarity])) {
+          soundNotify.notify('default')
+        }
       }
     }
     if (!soundNotify.notify(pokemonId)) {
-      soundNotify.notify('default')
+      if (!soundNotify.notify(pokemonRaritySound[item.pokemon_rarity])) {
+        soundNotify.notify('default')
+      }
     }
   } else if (_shouldNotify('select_sound_notify', pokemonDistance)) {
     if (!soundNotify.notify(pokemonId)) {
-      soundNotify.notify('default')
+      if (!soundNotify.notify(pokemonRaritySound[item.pokemon_rarity])) {
+        soundNotify.notify('default')
+      }
     }
   }
 
@@ -2197,7 +2204,7 @@ $(function () {
         id: value['id'],
         text: i8lnReplace(value['text'])
       })
-      audiosprites[value['id']] = {id: value['id'], type: value['type'], src: value['src'], audiosprite: []}
+      audiosprites[value['id']] = {id: value['id'], type: value['type'], src: value['src']}
     })
 
     $selectAudiospriteNotify = $('#notify-audiosprite')
