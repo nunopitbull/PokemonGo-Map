@@ -6,6 +6,7 @@
 *.orig
 config/config.ini
 static/dist/
+static/sounds/**/*.json
 node_modules/
 venv/
 core

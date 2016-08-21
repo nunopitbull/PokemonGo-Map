@@ -9,10 +9,21 @@ var $selectStyle
 var $selectIconResolution
 var $selectIconSize
 var $selectLuredPokestopsOnly
+var $selectSoundNotify
+var $selectAudiospriteNotify
+var $selectNotificationNotify
+var $selectTexttospeechNotify
+var $selectNearbyNotify
+var $selectNearbyDistanceNotify
 
 var language = document.documentElement.lang === '' ? 'en' : document.documentElement.lang
 var idToPokemon = {}
 var i8lnDictionary = {}
+var notificationDistances = {}
+var audiosprites = {}
+var pushNotify = new pushNotification
+var soundNotify = new soundNotification
+var textToSpeechNotify = new textToSpeechNotification
 var languageLookups = 0
 var languageLookupThreshold = 3
 
@@ -620,7 +631,6 @@ var mapData = {
   spawnpoints: {}
 }
 var gymTypes = ['Uncontested', 'Mystic', 'Valor', 'Instinct']
-createjs.Sound.registerSound('static/sounds/ding.mp3', 'ding')
 var pokemonSprites = {
   normal: {
     columns: 12,
@@ -738,10 +748,6 @@ var StoreOptions = {
     default: false,
     type: StoreTypes.Boolean
   },
-  'playSound': {
-    default: false,
-    type: StoreTypes.Boolean
-  },
   'geoLocate': {
     default: false,
     type: StoreTypes.Boolean
@@ -760,6 +766,30 @@ var StoreOptions = {
   },
   'iconSizeModifier': {
     default: 0,
+    type: StoreTypes.Number
+  },
+  'select_notification_notify': {
+    default: 'none',
+    type: StoreTypes.String
+  },
+  'select_sound_notify': {
+    default: 'none',
+    type: StoreTypes.String
+  },
+  'select_audiosprite_notify': {
+    default: 'default',
+    type: StoreTypes.String
+  },
+  'select_texttospeech_notify': {
+    default: 'none',
+    type: StoreTypes.String
+  },
+  'select_nearby_notify': {
+    default: [],
+    type: StoreTypes.JSON
+  },
+  'select_nearbydistance_notify': {
+    default: 1,
     type: StoreTypes.Number
   }
 }
@@ -952,7 +982,6 @@ function initSidebar () {
   $('#start-at-user-location-switch').prop('checked', Store.get('startAtUserLocation'))
   $('#scanned-switch').prop('checked', Store.get('showScanned'))
   $('#spawnpoints-switch').prop('checked', Store.get('showSpawnpoints'))
-  $('#sound-switch').prop('checked', Store.get('playSound'))
   var searchBox = new google.maps.places.SearchBox(document.getElementById('next-location'))
   $('#next-location').css('background-color', $('#geoloc-switch').prop('checked') ? '#e0e0e0' : '#ffffff')
 
@@ -1168,13 +1197,7 @@ function setupPokemonMarker (item, skipNotification, isBounceDisabled) {
 
   if (notifiedPokemon.indexOf(item['pokemon_id']) > -1 || notifiedRarity.indexOf(item['pokemon_rarity']) > -1) {
     if (!skipNotification) {
-      if (Store.get('playSound')) {
-        createjs.Sound.play('ding')
-      }
-      sendNotification('A wild ' + item['pokemon_name'] + ' appeared!', 'Click to load map', 'static/icons/' + item['pokemon_id'] + '.png', item['latitude'], item['longitude'])
-    }
-    if (marker.animationDisabled !== true) {
-      marker.setAnimation(google.maps.Animation.BOUNCE)
+      processNotifications(item, marker)
     }
   }
 
@@ -1571,18 +1594,175 @@ function getPointDistance (pointA, pointB) {
   return google.maps.geometry.spherical.computeDistanceBetween(pointA, pointB)
 }
 
-function sendNotification (title, text, icon, lat, lng) {
-  if (Push.isSupported) {
+function getItemDistance (item) {
+  return parseInt(google.maps.geometry.spherical.computeDistanceBetween(locationMarker.getPosition(), new google.maps.LatLng(item.latitude, item.longitude)))
+}
+
+function getItemHeading (item) {
+  var heading = google.maps.geometry.spherical.computeHeading(locationMarker.getPosition(), new google.maps.LatLng(item.latitude, item.longitude))
+
+  if ((heading >= -22 && heading <= 22)) {
+    return i8ln('North')
+  } else if (heading >= 68 && heading <= 112) {
+    return i8ln('East')
+  } else if ((heading >= -180 && heading <= -158) || (heading >= 158 && heading <= 180)) {
+    return i8ln('South')
+  } else if (heading >= -112 && heading <= -68) {
+    return i8ln('West')
+  } else if (heading > 0 && heading < 90) {
+    return i8ln('North East')
+  } else if (heading > 90 && heading < 180) {
+    return i8ln('South East')
+  } else if (heading > -90 && heading < 0) {
+    return i8ln('North West')
+  } else if (heading > -180 && heading < -90) {
+    return i8ln('South West')
+  }
+}
+
+function processNotifications(item, marker) {
+  var notificationTitle
+  var notitifcationMessage
+  var distance = getItemDistance(item)
+  var pokemonId = item.pokemon_id.toString()
+  var isNearBy = (distance <= parseInt(Store.get('select_nearbydistance_notify')))
+  var nearByNotify = Store.get('select_nearby_notify')
+
+  function _shouldNotify (storeKey, distance) {
+    // has notification distance JSON finished loading?
+    if (!(Store.get(storeKey) in notificationDistances)) {
+      return false
+    }
+    var distanceItem = notificationDistances[Store.get(storeKey)]
+    if (!(distanceItem.type == 'none') && (distanceItem.type == 'all' || distanceItem.type == 'less' && distance <= parseInt(distanceItem.value) || distanceItem.type == 'more' && distance > parseInt(distanceItem.value))) {
+      return true
+    }
+    return false
+  }
+
+  pushNotify.nextNotifyTime = soundNotify.nextNotifyTime = textToSpeechNotify.nextNotifyTime = Math.max.apply(Math, [pushNotify.nextNotifyTime, soundNotify.nextNotifyTime, textToSpeechNotify.nextNotifyTime])
+
+  //Throttle notifications
+  if (pushNotify.nextNotifyTime - Date.now() > 60000){
+    return
+  }
+
+  if (isNearBy && nearByNotify.indexOf(1) >= 0 ) {
+    notificationTitle = 'A nearby wild ' + item.pokemon_rarity + ' ' + item.pokemon_name + ' appeared!'
+    notitifcationMessage = getItemDistance(item) + ' ' + i8ln('Meters') + ' ' + getItemHeading(item) + ' (Click to load map)'
+    pushNotify.notify(notificationTitle, notitifcationMessage, 'static/icons/' + pokemonId + '.png', item.latitude, item.longitude)
+  } else if (_shouldNotify('select_notification_notify', distance)) {
+    notificationTitle = 'A wild ' + item.pokemon_rarity + ' ' + item.pokemon_name + ' appeared!'
+    notitifcationMessage = getItemDistance(item) + ' ' + i8ln('Meters') + ' ' + getItemHeading(item) + ' (Click to load map)'
+    pushNotify.notify(notificationTitle, notitifcationMessage, 'static/icons/' + pokemonId + '.png', item.latitude, item.longitude)
+  }
+
+  if (isNearBy && nearByNotify.indexOf(2) >= 0 ) {
+    if (!soundNotify.notify(pokemonId + '-nearby')) {
+      if (!soundNotify.notify('default-nearby')) {
+        soundNotify.notify('default')
+      }
+    }
+    if (!soundNotify.notify(pokemonId)) {
+     soundNotify.notify('default')
+    }
+  } else if (_shouldNotify('select_sound_notify', distance)) {
+    if (!soundNotify.notify(pokemonId)) {
+      soundNotify.notify('default')
+    }
+  }
+
+  if (isNearBy && nearByNotify.indexOf(3) >= 0 ) {
+    textToSpeechNotify.notify(i8ln('Nearby') + item.pokemon_rarity + ' ' + item.pokemon_name + '. ' + getItemDistance(item) + ' ' + i8ln('Meters') + ' ' + getItemHeading(item), soundNotify.nextNotifyTime)
+  } else if (_shouldNotify('select_texttospeech_notify', distance)) {
+    textToSpeechNotify.notify(item.pokemon_rarity + ' ' + item.pokemon_name + '. ' + getItemDistance(item) + ' ' + i8ln('Meters') + ' ' + getItemHeading(item), soundNotify.nextNotifyTime)
+  }
+
+  if (marker.animationDisabled !== true) {
+    marker.setAnimation(google.maps.Animation.BOUNCE)
+  }
+}
+
+function soundNotification () {
+  this.nextNotifyTime = 0
+  this.minInterval = 500
+
+  this.notify = function (soundId, notifyTime) {
+    if ((soundId in createjs.Sound._idHash)  && createjs.Sound.loadComplete(soundId)) {
+      var delay = Math.max(0, (notifyTime || this.nextNotifyTime) - Date.now())
+      var audioInstance = createjs.Sound.play(soundId, new createjs.PlayPropsConfig().set({delay: delay}))
+      this.nextNotifyTime = Date.now() + audioInstance.duration + this.minInterval + delay
+      return true
+    }
+    return false
+  }
+
+  this.load = function (source, path) {
+    createjs.Sound.removeAllSounds()
+
+    if (!createjs.Sound.hasEventListener('fileload')) {
+      createjs.Sound.on('fileload', _fileLoaded)
+    }
+    if (!createjs.Sound.hasEventListener('fileerror')) {
+      createjs.Sound.on("fileerror", _fileError)
+    }
+
+    $.getJSON(source).done(function (data) {
+        createjs.Sound.registerSounds(data, path)
+    })
+  }
+
+  function _fileLoaded (event) {
+    console.log("Sound file loaded:", event.id, event.src)
+  }
+
+  function _fileError (event) {
+    console.log("Sound file Error:", event.id, event.src)
+  }
+}
+
+function pushNotification () {
+  this.nextNotifyTime = 0
+  this.minInterval = 500
+
+  this.notify = function (title, text, icon, lat, lng, notifyTime) {
+    if (Push.isSupported) {
+      var delay = Math.max(0, (notifyTime || this.nextNotifyTime) - Date.now())
+      this.nextNotifyTime = Date.now() + this.minInterval + delay
+      setTimeout(function () {_notify(title, text, icon, lat, lng)}, delay)
+    }
+  }
+
+  function _notify (title, text, icon, lat, lng) {
     Push.create(title, {
       icon: icon,
       body: text,
-      vibrate: 1000,
+      timeout: 5000,
       onClick: function () {
         window.focus()
         this.close()
         centerMap(lat, lng, 20)
-      }
+      },
+      vibrate: [500]
     })
+  }
+}
+
+function textToSpeechNotification (phrase) {
+  this.nextNotifyTime = 0
+  this.minInterval = 5000 //max time per phrase
+
+  this.notify = function (phrase, notifyTime) {
+    if ('speechSynthesis' in window) {
+      var delay = Math.max(0, (notifyTime || this.nextNotifyTime) - Date.now())
+      this.nextNotifyTime = Date.now() + this.minInterval + delay
+      setTimeout(function () {
+        var utterance = new SpeechSynthesisUtterance(phrase)
+        utterance.rate = 0.8
+        utterance.lang = language
+        window.speechSynthesis.speak(utterance)
+      }, delay)
+    }
   }
 }
 
@@ -1727,6 +1907,16 @@ function i8ln (word) {
   }
 }
 
+//Replace the phrases in a sentence that are enclosed in { } with i8ln
+function i8lnReplace(text) {
+  var matches = text.match(/[^{}]+(?=})/g)
+
+  $.each(matches, function (key, value) {
+    text = text.replace('{' + value + '}', i8ln(value))
+  })
+  return text
+}
+
 function isTouchDevice () {
   // Should cover most browsers
   return 'ontouchstart' in window || navigator.maxTouchPoints
@@ -1738,10 +1928,9 @@ function isTouchDevice () {
 
 $(function () {
   if (!Push.isSupported) {
-    console.log('could not load notifications')
+    console.log('Notifications not supported')
     return
   }
-
   Push.Permission.request()
 })
 
@@ -1815,6 +2004,125 @@ $(function () {
     Store.set('showLuredPokestopsOnly', this.value)
     updateMap()
   })
+
+  // Load notification distances and populate lists
+  $.getJSON('static/dist/data/notificationdistances.min.json').done(function (data) {
+    var notificationDistanceList = []
+
+    $.each(data, function (key, value) {
+      notificationDistanceList.push({
+        id: key,
+        text: i8lnReplace(value['text'])
+      })
+
+      notificationDistances[key] = {type: value['type'], value: value['value']}
+    })
+
+    $selectNotificationNotify = $('#notify-notification')
+
+    $selectNotificationNotify.select2({
+      placeholder: i8ln('Select Distance'),
+      data: notificationDistanceList,
+      minimumResultsForSearch: Infinity
+    })
+
+    $selectNotificationNotify.on('change', function (e) {
+      Store.set('select_notification_notify', this.value)
+    })
+
+    $selectNotificationNotify.val(Store.get('select_notification_notify')).trigger('change')
+
+    $selectSoundNotify = $('#notify-sound')
+
+    $selectSoundNotify.select2({
+      placeholder: i8ln('Select Distance'),
+      data: notificationDistanceList,
+      minimumResultsForSearch: Infinity
+    })
+
+    $selectSoundNotify.on('change', function (e) {
+      Store.set('select_sound_notify', this.value)
+    })
+
+    $selectSoundNotify.val(Store.get('select_sound_notify')).trigger('change')
+
+    $selectTexttospeechNotify = $('#notify-texttospeech')
+
+    $selectTexttospeechNotify.select2({
+      placeholder: i8ln('Select Distance'),
+      data: notificationDistanceList,
+      minimumResultsForSearch: Infinity
+    })
+
+    $selectTexttospeechNotify.on('change', function (e) {
+      Store.set('select_texttospeech_notify', this.value)
+    })
+
+    $selectTexttospeechNotify.val(Store.get('select_texttospeech_notify')).trigger('change')
+  })
+
+  // Load sound packs and populate list
+  $.getJSON('static/sounds/audiosprites.min.json').done(function (data) {
+    var audiospriteList = []
+    $.each(data, function (key, value) {
+      audiospriteList.push({
+      id: value['id'],
+      text: i8lnReplace(value['text'])
+      })
+      audiosprites[value['id']] = {id: value['id'], type: value['type'], src: value['src'], audiosprite: []}
+    })
+
+    $selectAudiospriteNotify = $('#notify-audiosprite')
+
+    $selectAudiospriteNotify.select2({
+      placeholder: i8ln('Select Sound Pack'),
+      data: audiospriteList,
+      minimumResultsForSearch: Infinity
+    })
+
+    $selectAudiospriteNotify.on('change', function (e) {
+      soundNotify.load('static/sounds/' + audiosprites[this.value].id  + '/' + audiosprites[this.value].src, 'static/sounds/' + audiosprites[this.value].id + '/')
+      Store.set('select_audiosprite_notify', this.value)
+    })
+
+    $selectAudiospriteNotify.val(Store.get('select_audiosprite_notify')).trigger('change')
+  })
+
+  $selectNearbyNotify = $('#notify-nearby')
+
+  $selectNearbyNotify.select2({
+    placeholder: i8ln('Select Notifications'),
+    data: [{id: 1, text: i8ln('Push')}, {id: 2, text: i8ln('Sound')}, {id:3, text: i8ln('Voice')}]
+  })
+
+  $selectNearbyNotify.on('change', function (e) {
+    Store.set('select_nearby_notify', $selectNearbyNotify.val().map(Number))
+  })
+
+  $selectNearbyNotify.val(Store.get('select_nearby_notify')).trigger('change')
+
+  $selectNearbyDistanceNotify = $('#notify-nearbydistance')
+
+  $selectNearbyDistanceNotify.select2({
+    placeholder: i8ln('Select Distance'),
+    minimumResultsForSearch: Infinity,
+    data: [{id: 1, text: i8ln('Nearby')},
+      {id: 100, text: i8lnReplace('{Less than} 100 {Meters}')},
+      {id: 150, text: i8lnReplace('{Less than} 150 {Meters}')},
+      {id: 200, text: i8lnReplace('{Less than} 200 {Meters}')},
+      {id: 250, text: i8lnReplace('{Less than} 250 {Meters}')},
+      {id: 300, text: i8lnReplace('{Less than} 300 {Meters}')},
+      {id: 350, text: i8lnReplace('{Less than} 350 {Meters}')},
+      {id: 400, text: i8lnReplace('{Less than} 400 {Meters}')},
+      {id: 450, text: i8lnReplace('{Less than} 450 {Meters}')},
+      {id: 500, text: i8lnReplace('{Less than} 500 {Meters}')}]
+  })
+
+  $selectNearbyDistanceNotify.on('change', function (e) {
+    Store.set('select_nearbydistance_notify', this.value)
+  })
+
+  $selectNearbyDistanceNotify.val(Store.get('select_nearbydistance_notify')).trigger('change')
 })
 
 $(function () {
@@ -1956,10 +2264,6 @@ $(function () {
       wrapper.hide(options)
     }
     return buildSwitchChangeListener(mapData, ['pokestops'], 'showPokestops').bind(this)()
-  })
-
-  $('#sound-switch').change(function () {
-    Store.set('playSound', this.checked)
   })
 
   $('#geoloc-switch').change(function () {
