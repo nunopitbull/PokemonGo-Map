@@ -1664,14 +1664,13 @@ function getHeadingOrdinal (heading) {
 }
 
 function processNotifications (item, marker) {
-
   function _shouldNotify (storeKey, distance) {
     // has notification distance JSON finished loading?
     if (!(Store.get(storeKey) in notificationDistances)) {
       return false
     }
     var distanceItem = notificationDistances[Store.get(storeKey)]
-    if (!(distanceItem.type === 'none') && (distanceItem.type === 'all' || distanceItem.type === 'less' && distance <= parseInt(distanceItem.value) || distanceItem.type == 'more' && distance > parseInt(distanceItem.value))) {
+    if (!(distanceItem.type === 'none') && (distanceItem.type === 'all' || distanceItem.type === 'less' && distance <= parseInt(distanceItem.value) || distanceItem.type === 'more' && distance > parseInt(distanceItem.value))) {
       return true
     }
     return false
@@ -1685,7 +1684,7 @@ function processNotifications (item, marker) {
   var isNearBy = (pokemonDistance <= parseInt(Store.get('select_nearbydistance_notify')))
   var nearByNotify = Store.get('select_nearby_notify')
 
-  pushNotify.nextNotifyTime = soundNotify.nextNotifyTime = textToSpeechNotify.nextNotifyTime = Math.max.apply(Math, [pushNotify.nextNotifyTime, soundNotify.nextNotifyTime, textToSpeechNotify.nextNotifyTime])
+  pushNotify.nextNotifyTime = soundNotify.nextNotifyTime = textToSpeechNotify.nextNotifyTime = Math.max.apply(null, [pushNotify.nextNotifyTime, soundNotify.nextNotifyTime, textToSpeechNotify.nextNotifyTime])
 
   // Throttle notifications to < 1 min, notification maxQueue's are also set at 5 (no more than 5 notifications queued)
   if (pushNotify.nextNotifyTime - Date.now() > 60000) {
@@ -1742,8 +1741,8 @@ function SoundNotification (queueMax) {
       this.queueCurrent += 1
       var delay = Math.max(0, (notifyTime || this.nextNotifyTime) - Date.now())
       var audioInstance = createjs.Sound.play(soundId, new createjs.PlayPropsConfig().set({delay: delay}))
-      audioInstance.on('complete', () => {this.queueCurrent -= 1})
-      audioInstance.on('failed', () =>  {this.queueCurrent -= 1})
+      audioInstance.on('complete', () => { this.queueCurrent -= 1 })
+      audioInstance.on('failed', () => { this.queueCurrent -= 1 })
       this.nextNotifyTime = Date.now() + audioInstance.duration + this.minInterval + delay
       return true
     }
@@ -1997,6 +1996,16 @@ function isTouchDevice () {
   return 'ontouchstart' in window || navigator.maxTouchPoints
 }
 
+function getQueryParams () {
+  var queryParams = location.search.substring(1)
+  return queryParams ? JSON.parse(
+  '{"' + queryParams.replace(/&/g, '","')
+  .replace(/=/g, '":"') + '"}',
+  function (key, value) {
+    return (key === '') ? value : decodeURIComponent(value)
+  }) : {}
+}
+
 //
 // Page Ready Exection
 //
@@ -2005,9 +2014,9 @@ $(function () {
   if (Push.isSupported) {
     Push.Permission.request()
 
-    var query = (document.location.search).replace(/(^\?)/, '').split('&').map(function (n) { return n = n.split('='), this[n[0]] = n[1], this }.bind({}))[0]
-    if ('centermap' in query) {
-      var location = query.centermap.split(',')
+    var queryParams = getQueryParams()
+    if ('centermap' in queryParams) {
+      var location = queryParams.centermap.split(',')
       centerMap(location[0], location[1], 20)
     }
 
@@ -2018,7 +2027,6 @@ $(function () {
         }
       })
     }
-
   } else {
     console.log('notifications are not supported.')
   }

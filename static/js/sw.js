@@ -1,3 +1,5 @@
+/* eslint-env serviceworker */
+
 self.addEventListener('install', function (event) {
   return self.skipWaiting()
 })
@@ -31,15 +33,15 @@ self.addEventListener('notificationclick', function (event) {
         }
       }
           // app not found, open a new one
-        if (clientList.length === 0) {
-          if (clients.openWindow) {
-            if ('url' in data) {
-              return clients.openWindow(data.url)
-            } else {
-              return clients.openWindow('/')
-            }
+      if (clientList.length === 0) {
+        if (clients.openWindow) {
+          if ('url' in data) {
+            return clients.openWindow(data.url)
+          } else {
+            return clients.openWindow('/')
           }
         }
+      }
     })
   )
 })
