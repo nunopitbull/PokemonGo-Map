@@ -1231,8 +1231,8 @@ function setupPokemonMarker (item, skipNotification, isBounceDisabled) {
   })
 
   if (notifiedPokemon.indexOf(item['pokemon_id']) > -1 || notifiedRarity.indexOf(item['pokemon_rarity']) > -1) {
-    if (!skipNotification && Store.get('notify')) {
-      processNotifications(item, marker)
+    if (Store.get('notify')) {
+      processNotifications(item, marker, skipNotification)
     }
   }
 
@@ -1663,7 +1663,7 @@ function getHeadingOrdinal (heading) {
   }
 }
 
-function processNotifications (item, marker) {
+function processNotifications (item, marker, refresh) {
   function _shouldNotify (storeKey, distance) {
     // has notification distance JSON finished loading?
     if (!(Store.get(storeKey) in notificationDistances)) {
@@ -1676,64 +1676,66 @@ function processNotifications (item, marker) {
     return false
   }
 
-  var notificationTitle
-  var notitifcationMessage
-  var pokemonDistance = getPokemonDistance(item)
-  var pokemonOrdinal = getHeadingOrdinal(getPokemonHeading(item))
-  var pokemonId = item.pokemon_id.toString()
-  var isNearBy = (pokemonDistance <= parseInt(Store.get('select_nearbydistance_notify')))
-  var nearByNotify = Store.get('select_nearby_notify')
+  if (!refresh) {
+    var notificationTitle
+    var notitifcationMessage
+    var pokemonDistance = getPokemonDistance(item)
+    var pokemonOrdinal = getHeadingOrdinal(getPokemonHeading(item))
+    var pokemonId = item.pokemon_id.toString()
+    var isNearBy = (pokemonDistance <= parseInt(Store.get('select_nearbydistance_notify')))
+    var nearByNotify = Store.get('select_nearby_notify')
 
-  var pokemonRarityId = {
-    [i8ln('Common')]: '1',
-    [i8ln('Uncommon')]: '2',
-    [i8ln('Rare')]: '3',
-    [i8ln('Very Rare')]: '4',
-    [i8ln('Ultra Rare')]: '5'
-  }[item.pokemon_rarity]
+    var pokemonRarityId = {
+      [i8ln('Common')]: '1',
+      [i8ln('Uncommon')]: '2',
+      [i8ln('Rare')]: '3',
+      [i8ln('Very Rare')]: '4',
+      [i8ln('Ultra Rare')]: '5'
+    }[item.pokemon_rarity]
 
-  pushNotify.nextNotifyTime = soundNotify.nextNotifyTime = textToSpeechNotify.nextNotifyTime = Math.max.apply(null, [pushNotify.nextNotifyTime, soundNotify.nextNotifyTime, textToSpeechNotify.nextNotifyTime])
+    pushNotify.nextNotifyTime = soundNotify.nextNotifyTime = textToSpeechNotify.nextNotifyTime = Math.max.apply(null, [pushNotify.nextNotifyTime, soundNotify.nextNotifyTime, textToSpeechNotify.nextNotifyTime])
 
-  // Throttle notifications to < 1 min, notification maxQueue's are also set at 5 (no more than 5 notifications queued)
-  if (pushNotify.nextNotifyTime - Date.now() > 60000) {
-    return
-  }
+    // Throttle notifications to < 1 min, notification maxQueue's are also set at 5 (no more than 5 notifications queued)
+    if (pushNotify.nextNotifyTime - Date.now() > 60000) {
+      return
+    }
 
-  if (isNearBy && nearByNotify.indexOf(1) >= 0) {
-    notificationTitle = 'A nearby wild ' + item.pokemon_rarity + ' ' + item.pokemon_name + ' appeared!'
-    notitifcationMessage = pokemonDistance + ' ' + i8ln('Meters') + ' ' + pokemonOrdinal + ' (Click to load map)'
-    pushNotify.notify(notificationTitle, notitifcationMessage, 'static/icons/' + pokemonId + '.png', item.latitude, item.longitude)
-  } else if (_shouldNotify('select_notification_notify', pokemonDistance)) {
-    notificationTitle = 'A wild ' + item.pokemon_rarity + ' ' + item.pokemon_name + ' appeared!'
-    notitifcationMessage = pokemonDistance + ' ' + i8ln('Meters') + ' ' + pokemonOrdinal + ' (Click to load map)'
-    pushNotify.notify(notificationTitle, notitifcationMessage, 'static/icons/' + pokemonId + '.png', item.latitude, item.longitude)
-  }
+    if (isNearBy && nearByNotify.indexOf(1) >= 0) {
+      notificationTitle = 'A nearby wild ' + item.pokemon_rarity + ' ' + item.pokemon_name + ' appeared!'
+      notitifcationMessage = pokemonDistance + ' ' + i8ln('Meters') + ' ' + pokemonOrdinal + ' (Click to load map)'
+      pushNotify.notify(notificationTitle, notitifcationMessage, 'static/icons/' + pokemonId + '.png', item.latitude, item.longitude)
+    } else if (_shouldNotify('select_notification_notify', pokemonDistance)) {
+      notificationTitle = 'A wild ' + item.pokemon_rarity + ' ' + item.pokemon_name + ' appeared!'
+      notitifcationMessage = pokemonDistance + ' ' + i8ln('Meters') + ' ' + pokemonOrdinal + ' (Click to load map)'
+      pushNotify.notify(notificationTitle, notitifcationMessage, 'static/icons/' + pokemonId + '.png', item.latitude, item.longitude)
+    }
 
-  if (isNearBy && nearByNotify.indexOf(2) >= 0) {
-    if (!soundNotify.notify(pokemonId + '-nearby')) {
-      if (!soundNotify.notify('default-nearby')) {
+    if (isNearBy && nearByNotify.indexOf(2) >= 0) {
+      if (!soundNotify.notify(pokemonId + '-nearby')) {
+        if (!soundNotify.notify('default-nearby')) {
+          if (!soundNotify.notify('rarity-' + pokemonRarityId)) {
+            soundNotify.notify('default')
+          }
+        }
+      }
+      if (!soundNotify.notify(pokemonId)) {
+        if (!soundNotify.notify('rarity-' + pokemonRarityId)) {
+          soundNotify.notify('default')
+        }
+      }
+    } else if (_shouldNotify('select_sound_notify', pokemonDistance)) {
+      if (!soundNotify.notify(pokemonId)) {
         if (!soundNotify.notify('rarity-' + pokemonRarityId)) {
           soundNotify.notify('default')
         }
       }
     }
-    if (!soundNotify.notify(pokemonId)) {
-      if (!soundNotify.notify('rarity-' + pokemonRarityId)) {
-        soundNotify.notify('default')
-      }
-    }
-  } else if (_shouldNotify('select_sound_notify', pokemonDistance)) {
-    if (!soundNotify.notify(pokemonId)) {
-      if (!soundNotify.notify('rarity-' + pokemonRarityId)) {
-        soundNotify.notify('default')
-      }
-    }
-  }
 
-  if (isNearBy && nearByNotify.indexOf(3) >= 0) {
-    textToSpeechNotify.notify(i8ln('Nearby') + item.pokemon_rarity + ' ' + item.pokemon_name + '. ' + pokemonDistance + ' ' + i8ln('Meters') + ' ' + pokemonOrdinal, soundNotify.nextNotifyTime)
-  } else if (_shouldNotify('select_texttospeech_notify', pokemonDistance)) {
-    textToSpeechNotify.notify(item.pokemon_rarity + ' ' + item.pokemon_name + '. ' + pokemonDistance + ' ' + i8ln('Meters') + ' ' + pokemonOrdinal, soundNotify.nextNotifyTime)
+    if (isNearBy && nearByNotify.indexOf(3) >= 0) {
+      textToSpeechNotify.notify(i8ln('Nearby') + item.pokemon_rarity + ' ' + item.pokemon_name + '. ' + pokemonDistance + ' ' + i8ln('Meters') + ' ' + pokemonOrdinal, soundNotify.nextNotifyTime)
+    } else if (_shouldNotify('select_texttospeech_notify', pokemonDistance)) {
+      textToSpeechNotify.notify(item.pokemon_rarity + ' ' + item.pokemon_name + '. ' + pokemonDistance + ' ' + i8ln('Meters') + ' ' + pokemonOrdinal, soundNotify.nextNotifyTime)
+    }
   }
 
   if (marker.animationDisabled !== true) {
