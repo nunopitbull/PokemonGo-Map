@@ -1683,7 +1683,14 @@ function processNotifications (item, marker) {
   var pokemonId = item.pokemon_id.toString()
   var isNearBy = (pokemonDistance <= parseInt(Store.get('select_nearbydistance_notify')))
   var nearByNotify = Store.get('select_nearby_notify')
-  var pokemonRaritySound = {[i8ln('Common')]: 'rarity-1', [i8ln('Uncommon')]: 'rarity-2', [i8ln('Rare')]: 'rarity-3', [i8ln('Very Rare')]: 'rarity-4', [i8ln('Ultra Rare')]: 'rarity-5'}
+
+  var pokemonRarityId = {
+    [i8ln('Common')]: '1',
+    [i8ln('Uncommon')]: '2',
+    [i8ln('Rare')]: '3',
+    [i8ln('Very Rare')]: '4',
+    [i8ln('Ultra Rare')]: '5'
+  }[item.pokemon_rarity]
 
   pushNotify.nextNotifyTime = soundNotify.nextNotifyTime = textToSpeechNotify.nextNotifyTime = Math.max.apply(null, [pushNotify.nextNotifyTime, soundNotify.nextNotifyTime, textToSpeechNotify.nextNotifyTime])
 
@@ -1705,19 +1712,19 @@ function processNotifications (item, marker) {
   if (isNearBy && nearByNotify.indexOf(2) >= 0) {
     if (!soundNotify.notify(pokemonId + '-nearby')) {
       if (!soundNotify.notify('default-nearby')) {
-        if (!soundNotify.notify(pokemonRaritySound[item.pokemon_rarity])) {
+        if (!soundNotify.notify('rarity-' + pokemonRarityId)) {
           soundNotify.notify('default')
         }
       }
     }
     if (!soundNotify.notify(pokemonId)) {
-      if (!soundNotify.notify(pokemonRaritySound[item.pokemon_rarity])) {
+      if (!soundNotify.notify('rarity-' + pokemonRarityId)) {
         soundNotify.notify('default')
       }
     }
   } else if (_shouldNotify('select_sound_notify', pokemonDistance)) {
     if (!soundNotify.notify(pokemonId)) {
-      if (!soundNotify.notify(pokemonRaritySound[item.pokemon_rarity])) {
+      if (!soundNotify.notify('rarity-' + pokemonRarityId)) {
         soundNotify.notify('default')
       }
     }
@@ -1743,7 +1750,7 @@ function SoundNotification (queueMax) {
   this.notify = function (soundId, notifyTime) {
     if ((soundId in createjs.Sound._idHash) && createjs.Sound.loadComplete(soundId)) {
       if (this.queueCurrent >= this.queueMax) {
-        return // we could indicate we are suppressing
+        return true // we could indicate we are suppressing
       }
       this.queueCurrent += 1
       var delay = Math.max(0, (notifyTime || this.nextNotifyTime) - Date.now())
