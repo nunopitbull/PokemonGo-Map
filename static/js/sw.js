@@ -1,11 +1,11 @@
 /* eslint-env serviceworker */
 
 self.addEventListener('install', function (event) {
-  return self.skipWaiting()
+  event.waitUntil(self.skipWaiting())
 })
 
 self.addEventListener('activate', function (event) {
-  return self.clients.claim()
+  event.waitUntil(self.clients.claim())
 })
 
 self.addEventListener('notificationclick', function (event) {
