@@ -47,6 +47,7 @@ log = logging.getLogger(__name__)
 TIMESTAMP = '\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000'
 _loginJitterAmplitude = 30
 
+
 # Apply a location jitter
 def jitterLocation(location=None, maxMeters=10):
     origin = geopy.Point(location[0], location[1])
@@ -602,6 +603,8 @@ def check_login(args, account, api, position):
     api.set_position(new_position[0], new_position[1], new_position[2])
 
     currentPos = api.get_position()
+    log.debug("User {} logged in from: {},{},{}".format(account['username'],new_position[0], new_position[1], new_position[2]))
+
     while i < args.login_retries:
         try:
 
