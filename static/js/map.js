@@ -1836,21 +1836,42 @@ function TextToSpeechNotification (queueMax) {
   this.queueMax = queueMax
   this.queueCurrent = 0
 
+  this.iOS = (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream)
+  this.iOSInitialized = false
+  this.clickEventInitialized = false
+
+  this.clickEvent = function () {
+    if (this.iOS && !this.clickEventInitialized) {
+      var utterance = new SpeechSynthesisUtterance(' ')
+      window.speechSynthesis.speak(utterance)
+      this.clickEventInitialized = true
+    }
+  }
+
   this.notify = function (phrase, notifyTime) {
     if ('speechSynthesis' in window) {
-      if (this.queueCurrent >= this.queueMax) {
-        return // we could indicate we are suppressing
+      if (this.iOS && !this.iOSInitialized) {
+        setTimeout(() => {
+          this.notify(phrase, notifyTime)
+        }
+        , 100)
+        this.clickEvent()
+        this.iOSInitialized = true
+      } else {
+        if (this.queueCurrent >= this.queueMax) {
+          return // we could indicate we are suppressing
+        }
+        this.queueCurrent += 1
+        var delay = Math.max(0, (notifyTime || this.nextNotifyTime) - Date.now())
+        this.nextNotifyTime = Date.now() + this.minInterval + delay
+        setTimeout(() => {
+          this.queueCurrent -= 1
+          var utterance = new SpeechSynthesisUtterance(phrase)
+          utterance.rate = 0.8
+          utterance.lang = language
+          window.speechSynthesis.speak(utterance)
+        }, delay)
       }
-      this.queueCurrent += 1
-      var delay = Math.max(0, (notifyTime || this.nextNotifyTime) - Date.now())
-      this.nextNotifyTime = Date.now() + this.minInterval + delay
-      setTimeout(() => {
-        this.queueCurrent -= 1
-        var utterance = new SpeechSynthesisUtterance(phrase)
-        utterance.rate = 0.8
-        utterance.lang = language
-        window.speechSynthesis.speak(utterance)
-      }, delay)
     }
   }
 }
