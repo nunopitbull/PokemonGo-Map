@@ -8,7 +8,7 @@
 
 ## I. Prerequisites
 1. Have already ran/operated the PokemonGo-Map using the default database setup.
-2. Have the "develop" build of PokemonGo-Map. [Available here.](https://github.com/AHAAAAAAA/PokemonGo-Map/archive/develop.zip)
+2. Have the "develop" build of PokemonGo-Map. [Available here.](https://github.com/PokemonGoMap/PokemonGo-Map/archive/develop.zip)
 3. Downloaded [MariaDB](https://downloads.mariadb.org/)
 
 ## II. Installing MariaDB
@@ -138,7 +138,7 @@ Note: These are preliminary until better Docker support in the official containe
 Note: These commands require git to be installed
 
 ```
-docker build -t pokemap https://github.com/AHAAAAAAA/PokemonGo-Map.git:develop
+docker build -t pokemap https://github.com/PokemonGoMap/PokemonGo-Map.git:develop
 docker run --name pokesql -e MYSQL_ROOT_PASSWORD=some-string -e MYSQL_DATABASE pokemap -d mysql:5.6
 ```
 
