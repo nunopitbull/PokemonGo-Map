@@ -1877,7 +1877,7 @@ function SoundNotification (queueMax) {
   this.queueMax = queueMax
   this.queueCurrent = 0
 
-  this.notify = function (soundId, notifyTime) {
+  this.notify = (soundId, notifyTime) => {
     if ((soundId in createjs.Sound._idHash) && createjs.Sound.loadComplete(soundId)) {
       if (this.queueCurrent >= this.queueMax) {
         return true // we could indicate we are suppressing
@@ -1893,7 +1893,7 @@ function SoundNotification (queueMax) {
     return false
   }
 
-  this.load = function (source, path) {
+  this.load = (source, path) => {
     createjs.Sound.removeAllSounds()
 
     if (!createjs.Sound.hasEventListener('fileload')) {
@@ -1923,7 +1923,7 @@ function PushNotification (queueMax) {
   this.queueMax = queueMax
   this.queueCurrent = 0
 
-  this.notify = function (title, text, icon, lat, lng, notifyTime) {
+  this.notify = (title, text, icon, lat, lng, notifyTime) => {
     if (Push.isSupported) {
       if (this.queueCurrent >= this.queueMax) {
         return // we could indicate we are suppressing
@@ -1965,27 +1965,12 @@ function TextToSpeechNotification (queueMax) {
   this.queueCurrent = 0
 
   this.iOS = (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream)
-  this.iOSInitialized = false
-  this.clickEventInitialized = false
+  this.needsUnlock = (this.iOS) // currently only iOS
+  this.unlocked = false
 
-  this.clickEvent = function () {
-    if (this.iOS && !this.clickEventInitialized) {
-      var utterance = new SpeechSynthesisUtterance(' ')
-      window.speechSynthesis.speak(utterance)
-      this.clickEventInitialized = true
-    }
-  }
-
-  this.notify = function (phrase, notifyTime) {
+  this.notify = (phrase, notifyTime) => {
     if ('speechSynthesis' in window) {
-      if (this.iOS && !this.iOSInitialized) {
-        setTimeout(() => {
-          this.notify(phrase, notifyTime)
-        }
-        , 100)
-        this.clickEvent()
-        this.iOSInitialized = true
-      } else {
+      if ((!this.needsUnlock) || (this.needsUnlock && this.unlocked)) {
         if (this.queueCurrent >= this.queueMax) {
           return // we could indicate we are suppressing
         }
@@ -2001,6 +1986,31 @@ function TextToSpeechNotification (queueMax) {
         }, delay)
       }
     }
+  }
+
+  this._addClickListeners = () => {
+    document.addEventListener('mousedown', this._clickEvent, true)
+    document.addEventListener('touchend', this._clickEvent, true)
+  }
+
+  this._removeClickListeners = () => {
+    document.removeEventListener('mousedown', this._clickEvent, true)
+    document.removeEventListener('touchend', this._clickEvent, true)
+  }
+
+  this._clickEvent = () => {
+    if (this.needsUnlock && !this.unlocked) {
+      console.log('Initialized')
+      var utterance = new SpeechSynthesisUtterance(' ')
+      window.speechSynthesis.speak(utterance)
+      this._removeClickListeners()
+      this.unlocked = true
+    }
+  }
+
+  // Detect the first document level click or touch and use to unlock speechSynthesis in iOS
+  if (('speechSynthesis' in window) && ('ontouchstart' in window) && this.needsUnlock && !this.unlocked) {
+    this._addClickListeners()
   }
 }
 
