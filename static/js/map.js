@@ -10,6 +10,7 @@ var $selectIconResolution
 var $selectIconSize
 var $selectLuredPokestopsOnly
 var $selectSearchIconMarker
+var $selectLocationIconMarker
 
 var language = document.documentElement.lang === '' ? 'en' : document.documentElement.lang
 var idToPokemon = {}
@@ -776,6 +777,10 @@ var StoreOptions = {
     default: false,
     type: StoreTypes.Boolean
   },
+  'followMyLocation': {
+    default: false,
+    type: StoreTypes.Boolean
+  },
   'pokemonIcons': {
     default: 'highres',
     type: StoreTypes.String
@@ -786,6 +791,10 @@ var StoreOptions = {
   },
   'searchMarkerStyle': {
     default: 'google',
+    type: StoreTypes.String
+  },
+  'locationMarkerStyle': {
+    default: 'none',
     type: StoreTypes.String
   },
   'zoomLevel': {
@@ -930,9 +939,41 @@ function initMap () { // eslint-disable-line no-unused-vars
   })
 
   searchMarker = createSearchMarker()
-
-  addMyLocationButton()
+  locationMarker = createLocationMarker()
+  createMyLocationButton()
   initSidebar()
+}
+
+function updateLocationMarker (style) {
+  if (style in searchMarkerStyles) {
+    locationMarker.setIcon(searchMarkerStyles[style].icon)
+    Store.set('locationMarkerStyle', style)
+  }
+  return locationMarker
+}
+
+function createLocationMarker () {
+  var locationMarker = new google.maps.Marker({
+    map: map,
+    animation: google.maps.Animation.DROP,
+    position: {
+      lat: centerLat,
+      lng: centerLng
+    },
+    draggable: true,
+    icon: null,
+    optimized: false,
+    zIndex: google.maps.Marker.MAX_ZINDEX + 2
+  })
+
+  locationMarker.infoWindow = new google.maps.InfoWindow({
+    content: '<div><b>My Location</b></div>',
+    disableAutoPan: true
+  })
+
+  addListeners(locationMarker)
+
+  return locationMarker
 }
 
 function updateSearchMarker (style) {
@@ -940,6 +981,7 @@ function updateSearchMarker (style) {
     searchMarker.setIcon(searchMarkerStyles[style].icon)
     Store.set('searchMarkerStyle', style)
   }
+
   return searchMarker
 }
 
@@ -956,6 +998,13 @@ function createSearchMarker () {
     optimized: false,
     zIndex: google.maps.Marker.MAX_ZINDEX + 1
   })
+
+  searchMarker.infoWindow = new google.maps.InfoWindow({
+    content: '<div><b>Search Location</b></div>',
+    disableAutoPan: true
+  })
+
+  addListeners(searchMarker)
 
   var oldLocation = null
   google.maps.event.addListener(searchMarker, 'dragstart', function () {
@@ -997,6 +1046,7 @@ function initSidebar () {
   $('#geoloc-switch').prop('checked', Store.get('geoLocate'))
   $('#lock-marker-switch').prop('checked', Store.get('lockMarker'))
   $('#start-at-user-location-switch').prop('checked', Store.get('startAtUserLocation'))
+  $('#follow-my-location-switch').prop('checked', Store.get('followMyLocation'))
   $('#scanned-switch').prop('checked', Store.get('showScanned'))
   $('#spawnpoints-switch').prop('checked', Store.get('showSpawnpoints'))
   $('#ranges-switch').prop('checked', Store.get('showRanges'))
@@ -1835,7 +1885,7 @@ function sendNotification (title, text, icon, lat, lng) {
   }
 }
 
-function myLocationButton (map, marker) {
+function createMyLocationButton () {
   var locationContainer = document.createElement('div')
 
   var locationButton = document.createElement('button')
@@ -1869,6 +1919,11 @@ function myLocationButton (map, marker) {
 
   locationContainer.index = 1
   map.controls[google.maps.ControlPosition.RIGHT_BOTTOM].push(locationContainer)
+
+  google.maps.event.addListener(map, 'dragend', function () {
+    var currentLocation = document.getElementById('current-location')
+    currentLocation.style.backgroundPosition = '0px 0px'
+  })
 }
 
 function centerMapOnLocation () {
@@ -1885,10 +1940,6 @@ function centerMapOnLocation () {
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(function (position) {
       var latlng = new google.maps.LatLng(position.coords.latitude, position.coords.longitude)
-      locationMarker.setVisible(true)
-      locationMarker.setOptions({
-        'opacity': 1
-      })
       locationMarker.setPosition(latlng)
       map.setCenter(latlng)
       clearInterval(animationInterval)
@@ -1898,37 +1949,6 @@ function centerMapOnLocation () {
     clearInterval(animationInterval)
     currentLocation.style.backgroundPosition = '0px 0px'
   }
-}
-
-function addMyLocationButton () {
-  locationMarker = new google.maps.Marker({
-    map: map,
-    animation: google.maps.Animation.DROP,
-    position: {
-      lat: centerLat,
-      lng: centerLng
-    },
-    icon: {
-      path: google.maps.SymbolPath.CIRCLE,
-      fillOpacity: 1,
-      fillColor: '#1c8af6',
-      scale: 6,
-      strokeColor: '#1c8af6',
-      strokeWeight: 8,
-      strokeOpacity: 0.3
-    }
-  })
-  locationMarker.setVisible(false)
-
-  myLocationButton(map, locationMarker)
-
-  google.maps.event.addListener(map, 'dragend', function () {
-    var currentLocation = document.getElementById('current-location')
-    currentLocation.style.backgroundPosition = '0px 0px'
-    locationMarker.setOptions({
-      'opacity': 0.5
-    })
-  })
 }
 
 function changeLocation (lat, lng) {
@@ -2069,6 +2089,7 @@ $(function () {
   })
 
   $selectSearchIconMarker = $('#iconmarker-style')
+  $selectLocationIconMarker = $('#locationmarker-style')
 
   $.getJSON('static/dist/data/searchmarkerstyle.min.json').done(function (data) {
     searchMarkerStyles = data
@@ -2096,6 +2117,19 @@ $(function () {
     $selectSearchIconMarker.val(Store.get('searchMarkerStyle')).trigger('change')
 
     updateSearchMarker(Store.get('lockMarker'))
+
+    $selectLocationIconMarker.select2({
+      placeholder: 'Select Location Marker',
+      data: searchMarkerStyleList,
+      minimumResultsForSearch: Infinity
+    })
+
+    $selectLocationIconMarker.on('change', function (e) {
+      Store.set('locationMarkerStyle', this.value)
+      updateLocationMarker(this.value)
+    })
+
+    $selectLocationIconMarker.val(Store.get('locationMarkerStyle')).trigger('change')
   })
 })
 
@@ -2190,18 +2224,28 @@ $(function () {
   window.setInterval(updateLabelDiffTime, 1000)
   window.setInterval(updateMap, 5000)
   window.setInterval(function () {
-    if (navigator.geolocation && Store.get('geoLocate')) {
+    if (navigator.geolocation && (Store.get('geoLocate') || Store.get('followMyLocation'))) {
       navigator.geolocation.getCurrentPosition(function (position) {
-        var baseURL = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '')
         var lat = position.coords.latitude
         var lon = position.coords.longitude
+        var center = new google.maps.LatLng(lat, lon)
 
-        // the search function makes any small movements cause a loop. Need to increase resolution
-        if (getPointDistance(searchMarker.getPosition(), (new google.maps.LatLng(lat, lon))) > 40) {
-          $.post(baseURL + '/next_loc?lat=' + lat + '&lon=' + lon).done(function () {
-            var center = new google.maps.LatLng(lat, lon)
-            map.panTo(center)
-            searchMarker.setPosition(center)
+        if (Store.get('geoLocate')) {
+          var baseURL = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '')
+          // the search function makes any small movements cause a loop. Need to increase resolution
+          if (getPointDistance(searchMarker.getPosition(), center) > 40) {
+            $.post(baseURL + '/next_loc?lat=' + lat + '&lon=' + lon).done(function () {
+              map.panTo(center)
+              searchMarker.setPosition(center)
+            })
+          }
+        }
+        if (Store.get('followMyLocation')) {
+          navigator.geolocation.getCurrentPosition(function (position) {
+            if (getPointDistance(locationMarker.getPosition(), center) >= 5) {
+              map.panTo(center)
+              locationMarker.setPosition(center)
+            }
           })
         }
       })
@@ -2278,6 +2322,15 @@ $(function () {
 
   $('#start-at-user-location-switch').change(function () {
     Store.set('startAtUserLocation', this.checked)
+  })
+
+  $('#follow-my-location-switch').change(function () {
+    if (!navigator.geolocation) {
+      this.checked = false
+    } else {
+      Store.set('followMyLocation', this.checked)
+    }
+    locationMarker.setDraggable(!this.checked)
   })
 
   if ($('#nav-accordion').length) {
