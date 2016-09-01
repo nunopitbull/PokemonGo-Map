@@ -1097,6 +1097,12 @@ function getTypeSpan (type) {
   return `<span style='padding: 2px 5px; text-transform: uppercase; color: white; margin-right: 2px; border-radius: 4px; font-size: 0.8em; vertical-align: text-bottom; background-color: ${type['color']}'>${type['type']}</span>`
 }
 
+function openMapDirections (lat, lng) { // eslint-disable-line no-unused-vars
+  var myLocation = locationMarker.getPosition()
+  var url = 'https://www.google.com/maps/dir/' + myLocation.lat() + ',' + myLocation.lng() + '/' + lat + ',' + lng
+  window.open(url, '_blank')
+}
+
 function pokemonLabel (name, rarity, types, disappearTime, id, latitude, longitude, encounterId) {
   var disappearDate = new Date(disappearTime)
   var rarityDisplay = rarity ? '(' + rarity + ')' : ''
@@ -1127,7 +1133,7 @@ function pokemonLabel (name, rarity, types, disappearTime, id, latitude, longitu
       <a href='javascript:excludePokemon(${id})'>Exclude</a>&nbsp;&nbsp
       <a href='javascript:notifyAboutPokemon(${id})'>Notify</a>&nbsp;&nbsp
       <a href='javascript:removePokemonMarker("${encounterId}")'>Remove</a>&nbsp;&nbsp
-      <a href='https://www.google.com/maps/dir/Current+Location/${latitude},${longitude}?hl=en' target='_blank' title='View in Maps'>Get directions</a>
+      <a href='javascript:void(0);' onclick='javascript:openMapDirections(${latitude},${longitude});' title='View in Maps'>Get directions</a>
     </div>`
   return contentstring
 }
@@ -1170,7 +1176,7 @@ function gymLabel (teamName, teamId, gymPoints, latitude, longitude, lastScanned
             Last Scanned: ${lastScannedStr}
           </div>
           <div>
-            <a href='https://www.google.com/maps/dir/Current+Location/${latitude},${longitude}?hl=en' target='_blank' title='View in Maps'>Get directions</a>
+            <a href='javascript:void(0);' onclick='javascript:openMapDirections(${latitude},${longitude});' title='View in Maps'>Get directions</a>
           </div>
         </center>
       </div>`
@@ -1206,7 +1212,7 @@ function gymLabel (teamName, teamId, gymPoints, latitude, longitude, lastScanned
             Last Scanned: ${lastScannedStr}
           </div>
           <div>
-            <a href='https://www.google.com/maps/dir/Current+Location/${latitude},${longitude}?hl=en' target='_blank' title='View in Maps'>Get directions</a>
+            <a href='javascript:void(0);' onclick='javascript:openMapDirections(${latitude},${longitude});' title='View in Maps'>Get directions</a>
           </div>
         </center>
       </div>`
@@ -1232,7 +1238,7 @@ function pokestopLabel (expireTime, latitude, longitude) {
         Location: ${latitude.toFixed(6)}, ${longitude.toFixed(7)}
       </div>
       <div>
-        <a href='https://www.google.com/maps/dir/Current+Location/${latitude},${longitude}?hl=en' target='_blank' title='View in Maps'>Get directions</a>
+        <a href='javascript:void(0);' onclick='javascript:openMapDirections(${latitude},${longitude});' title='View in Maps'>Get directions</a>
       </div>`
   } else {
     str = `
@@ -1243,7 +1249,7 @@ function pokestopLabel (expireTime, latitude, longitude) {
         Location: ${latitude.toFixed(6)}, ${longitude.toFixed(7)}
       </div>
       <div>
-        <a href='https://www.google.com/maps/dir/Current+Location/${latitude},${longitude}?hl=en' target='_blank' title='View in Maps'>Get directions</a>
+        <a href='javascript:void(0);' onclick='javascript:openMapDirections(${latitude},${longitude});' title='View in Maps'>Get directions</a>
       </div>`
   }
 
