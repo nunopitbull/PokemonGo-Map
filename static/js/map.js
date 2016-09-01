@@ -781,6 +781,10 @@ var StoreOptions = {
     default: false,
     type: StoreTypes.Boolean
   },
+  'followMyLocationPosition': {
+    default: [],
+    type: StoreTypes.JSON
+  },
   'pokemonIcons': {
     default: 'highres',
     type: StoreTypes.String
@@ -953,12 +957,16 @@ function updateLocationMarker (style) {
 }
 
 function createLocationMarker () {
+  var position = Store.get('followMyLocationPosition')
+  var lat = ('lat' in position) ? position.lat : centerLat
+  var lng = ('lng' in position) ? position.lng : centerLng
+
   var locationMarker = new google.maps.Marker({
     map: map,
     animation: google.maps.Animation.DROP,
     position: {
-      lat: centerLat,
-      lng: centerLng
+      lat: lat,
+      lng: lng
     },
     draggable: true,
     icon: null,
@@ -972,6 +980,11 @@ function createLocationMarker () {
   })
 
   addListeners(locationMarker)
+
+  google.maps.event.addListener(locationMarker, 'dragend', function () {
+    var newLocation = locationMarker.getPosition()
+    Store.set('followMyLocationPosition', { lat: newLocation.lat(), lng: newLocation.lng() })
+  })
 
   return locationMarker
 }
@@ -1942,6 +1955,7 @@ function centerMapOnLocation () {
       var latlng = new google.maps.LatLng(position.coords.latitude, position.coords.longitude)
       locationMarker.setPosition(latlng)
       map.setCenter(latlng)
+      Store.set('followMyLocationPosition', { lat: position.coords.latitude, lng: position.coords.longitude })
       clearInterval(animationInterval)
       currentLocation.style.backgroundPosition = '-144px 0px'
     })
@@ -2227,14 +2241,14 @@ $(function () {
     if (navigator.geolocation && (Store.get('geoLocate') || Store.get('followMyLocation'))) {
       navigator.geolocation.getCurrentPosition(function (position) {
         var lat = position.coords.latitude
-        var lon = position.coords.longitude
-        var center = new google.maps.LatLng(lat, lon)
+        var lng = position.coords.longitude
+        var center = new google.maps.LatLng(lat, lng)
 
         if (Store.get('geoLocate')) {
           var baseURL = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '')
           // the search function makes any small movements cause a loop. Need to increase resolution
           if (getPointDistance(searchMarker.getPosition(), center) > 40) {
-            $.post(baseURL + '/next_loc?lat=' + lat + '&lon=' + lon).done(function () {
+            $.post(baseURL + '/next_loc?lat=' + lat + '&lon=' + lng).done(function () {
               map.panTo(center)
               searchMarker.setPosition(center)
             })
@@ -2245,6 +2259,7 @@ $(function () {
             if (getPointDistance(locationMarker.getPosition(), center) >= 5) {
               map.panTo(center)
               locationMarker.setPosition(center)
+              Store.set('followMyLocationPosition', { lat: lat, lng: lng })
             }
           })
         }
