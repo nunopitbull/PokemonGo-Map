@@ -1899,7 +1899,7 @@ function createMyLocationButton () {
   locationButton.style.cursor = 'pointer'
   locationButton.style.marginRight = '10px'
   locationButton.style.padding = '0px'
-  locationButton.title = 'Your Location'
+  locationButton.title = 'My Location'
   locationContainer.appendChild(locationButton)
 
   var locationIcon = document.createElement('div')
