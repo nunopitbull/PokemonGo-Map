@@ -2291,9 +2291,9 @@ $(function () {
         var center = new google.maps.LatLng(lat, lng)
 
         if (Store.get('geoLocate')) {
-          var baseURL = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '')
+          var baseURL = location.protocol + '//' + location.host + location.pathname.substring(0, location.pathname.lastIndexOf('/'))
           // the search function makes any small movements cause a loop. Need to increase resolution
-          if (getPointDistance(searchMarker.getPosition(), center) > 40) {
+          if ((typeof searchMarker !== 'undefined') && (getPointDistance(searchMarker.getPosition(), center) > 40)) {
             $.post(baseURL + '/next_loc?lat=' + lat + '&lon=' + lng).done(function () {
               map.panTo(center)
               searchMarker.setPosition(center)
@@ -2301,13 +2301,11 @@ $(function () {
           }
         }
         if (Store.get('followMyLocation')) {
-          navigator.geolocation.getCurrentPosition(function (position) {
-            if (getPointDistance(locationMarker.getPosition(), center) >= 5) {
-              map.panTo(center)
-              locationMarker.setPosition(center)
-              Store.set('followMyLocationPosition', { lat: lat, lng: lng })
-            }
-          })
+          if ((typeof locationMarker !== 'undefined') && (getPointDistance(locationMarker.getPosition(), center) >= 5)) {
+            map.panTo(center)
+            locationMarker.setPosition(center)
+            Store.set('followMyLocationPosition', { lat: lat, lng: lng })
+          }
         }
       })
     }
