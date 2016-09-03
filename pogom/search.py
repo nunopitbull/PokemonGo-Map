@@ -46,6 +46,7 @@ import terminalsize
 log = logging.getLogger(__name__)
 
 TIMESTAMP = '\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000'
+_loginJitterAmplitude = 30
 
 
 # Apply a location jitter
@@ -657,11 +658,18 @@ def check_login(args, account, api, position):
 
     # Try to login (a few times, but don't get stuck here)
     i = 0
-    api.set_position(position[0], position[1], position[2])
+
+    new_position = jitterLocation(position, maxMeters=_loginJitterAmplitude)
+    api.set_position(new_position[0], new_position[1], new_position[2])
+
+    currentPos = api.get_position()
+    log.debug("User {} logged in from: {},{},{}".format(account['username'], currentPos[0], currentPos[1], currentPos[2]))
+
     while i < args.login_retries:
         try:
-            if account['proxy']:
-                api.set_authentication(provider=account['auth_service'], username=account['username'], password=account['password'], proxy_config={'http': account['proxy'], 'https': account['proxy']})
+           
+            if args.proxy:
+                api.set_authentication(provider=account['auth_service'], username=account['username'], password=account['password'], proxy_config={'http': args.proxy, 'https': args.proxy})
             else:
                 api.set_authentication(provider=account['auth_service'], username=account['username'], password=account['password'])
             break

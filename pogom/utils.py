@@ -56,6 +56,7 @@ def get_args():
                         help='Location, can be an address or coordinates')
     parser.add_argument('-j', '--jitter', help='Apply random -9m to +9m jitter to location',
                         action='store_true', default=False)
+    parser.add_argument('-lj', '--loginjitter', help='Apply random jitter between 0 and selected value to login location (in meters), default = 30', type=int, default=30)
     parser.add_argument('-st', '--step-limit', help='Steps', type=int,
                         default=12)
     parser.add_argument('-sd', '--scan-delay',
